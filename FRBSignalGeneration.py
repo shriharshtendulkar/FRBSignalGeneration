@@ -97,7 +97,7 @@ class AmplitudeTimeSeries:
         
         ampFRB = ampFRB/self.shape[1] ## reduce the amplitude based on the number of channels
         
-        self.timeSeries += FastRiseExpDecay(timePoints,ampFRB,decayFRB,riseFRB)
+        self.timeSeries += FastRiseExpDecay(timePoints,ampFRB,decayFRB,riseFRB)        
 
     def CoherentDisperse(self,DM):
         """ 
@@ -108,18 +108,18 @@ class AmplitudeTimeSeries:
         Currently implemented only for numChannels=1
         """ 
 
-        assert self.shape[1]==1, "This is not currently implemented for multiple channels!!"
+        #assert self.shape[1]==1, "This is not currently implemented for multiple channels!!"
 
-        nTotal = len(self.timeSeries)
-        f = np.arange(0,self.fMax-self.fMin, float(self.fMax-self.fMin)/nTotal) # this is in MHz
+        nTotal = self.shape[0]*self.shape[1]
+        f = np.arange(self.fMin,self.fMax, float(self.fMax-self.fMin)/nTotal).reshape((self.shape[1],self.shape[0])).transpose() # this is in MHz
         
         DM = DM*4.148808*1E9 #DispersionConstant = 4.148808*10**9
         
         # The added linear term makes the arrival times of the highest frequencies be 0
         # adapted from Barak Zakay's code.
-        H = np.exp(-(2*np.pi*1j * DM /(self.fMin + f) + 2*np.pi*1j*DM*f /(self.fMax**2)))
+        H = np.exp(2*np.pi*1j*DM*(1/f - 1/(self.fMax)))
         
-        self.timeSeries = np.fft.ifft(np.fft.fft(self.timeSeries) * H)
+        self.timeSeries = np.fft.ifft(np.fft.fft(self.timeSeries,axis=0) * H,axis=0)
 
     def ApplyFilterBank(self,newNumChannels):
         """ 
