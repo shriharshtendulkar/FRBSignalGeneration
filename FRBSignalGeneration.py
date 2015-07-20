@@ -7,6 +7,7 @@ Module to generate simulated data from CHIME. Inserts fake signals as requested.
 
 import numpy as np
 from numpy import random
+from matplotlib import pyplot as plt
 
 VERBOSE = True
 
@@ -39,12 +40,12 @@ class AmplitudeTimeSeries:
         noiseAlpha -- spectral slope (default is white noise) (TBD)
         ONLY GENERATES WHITE NOISE RIGHT NOW!
         """
-        self.shape = (lenSeries,numChannels)
+        self.shape = (np.uint(lenSeries),np.uint(numChannels))
         self.fMax = fMax
         self.fMin = fMin        
         
         if sampTime is None:
-            self.sampTime = numChannels*1E-6/(fMax-fMin)
+            self.sampTime = np.uint(numChannels)*1E-6/(fMax-fMin)
         else:
             self.sampTime = sampTime
 
@@ -60,12 +61,13 @@ class AmplitudeTimeSeries:
             if VERBOSE:
                 print "AmplitudeTimeSeries __init__ got new data, making sure it is reasonable."
 
-            self.timeSeries = np.complex64(timeSeries)
-
             if len(timeSeries.shape) == 1:
                 self.shape = (timeSeries.shape[0],1)
+                
             else:
                 self.shape = timeSeries.shape
+
+            self.timeSeries = np.reshape(np.complex64(timeSeries),self.shape)
             
             self.fMin = fMin
             self.fMax = fMax
@@ -89,7 +91,12 @@ class AmplitudeTimeSeries:
         decayFRB -- FRB decay time for the scattering tail (seconds)
         riseFRB -- FRB rise time (seconds). Default is zero.
         """
-        timePoints = np.arange(self.timeSeries.shape[0])*self.sampTime - epochFRB
+        ## the complicated expression is just to the get right shape.
+        timePoints = (np.meshgrid(np.arange(0,self.shape[1]),
+                                  np.arange(0,self.shape[0]))[1])*self.sampTime - epochFRB
+        
+        ampFRB = ampFRB/self.shape[1] ## reduce the amplitude based on the number of channels
+        
         self.timeSeries += FastRiseExpDecay(timePoints,ampFRB,decayFRB,riseFRB)
 
     def CoherentDisperse(self,DM):
@@ -101,7 +108,7 @@ class AmplitudeTimeSeries:
         Currently implemented only for numChannels=1
         """ 
 
-        assert self.numChannels==1, "This is not currently implemented for multiple channels!!"
+        assert self.shape[1]==1, "This is not currently implemented for multiple channels!!"
 
         nTotal = len(self.timeSeries)
         f = np.arange(0,self.fMax-self.fMin, float(self.fMax-self.fMin)/nTotal) # this is in MHz
@@ -142,11 +149,24 @@ class AmplitudeTimeSeries:
             self.sampTime = self.sampTime*factor
             self.shape = self.timeSeries.shape
     
-    def PlotTimeSeries(self):
+    def PlotTimeSeries(self,offSet=0):
         """
-        TBD
+        Plots the absolute values of the time series
+        offSet is a scalar offSet of each channel plot. 
+        Increasing channels get shifted higher and higher 
         """
-        return 0
+        plt.figure()
+        timePoints = np.arange(0,self.timeSeries.shape[0])*self.sampTime
+        #timePoints = (np.meshgrid(np.arange(0,self.shape[1]),
+        #                          np.arange(0,self.shape[0]))[0])*self.sampTime
+
+        offSets = np.outer(offSet*np.ones((self.shape[0],1)),np.arange(self.shape[1]))
+
+        plt.plot(timePoints,np.abs(self.timeSeries)+offSets)
+        plt.xlabel('Time (sec)')
+        plt.ylabel('Power')
+        plt.show()
+
 
 def FastRiseExpDecay(timePoints,ampFRB,decayFRB,riseFRB):
     """ 
