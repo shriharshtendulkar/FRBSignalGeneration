@@ -20,7 +20,7 @@ class AmplitudeTimeSeries:
     Attributes:
     timeSeries -- complex array of amplitude timeseries
     numChannels -- scalar integer, minimum 1
-    fMin, fMax -- minimum and maximum frequency. The channels are assumed to be equispaced for now.
+    fMin, fMax -- minimum and maximum frequency in MHz. The channels are assumed to be equispaced for now.
     """
     def __init__(self,timeSeries=None,
                  lenSeries=2**18,
@@ -108,15 +108,15 @@ class AmplitudeTimeSeries:
         Currently implemented only for numChannels=1
         """ 
 
-        #assert self.shape[1]==1, "This is not currently implemented for multiple channels!!"
-
         nTotal = self.shape[0]*self.shape[1]
-        f = np.arange(self.fMin,self.fMax, float(self.fMax-self.fMin)/nTotal).reshape((self.shape[1],self.shape[0])).transpose() # this is in MHz
+        f = np.arange(self.fMin,
+                      self.fMax, 
+                      float(self.fMax-self.fMin)/nTotal).reshape((self.shape[1],
+                                                                  self.shape[0])).transpose() # this is in MHz
         
         DM = DM*4.148808*1E9 #DispersionConstant = 4.148808*10**9
         
-        # The added linear term makes the arrival times of the highest frequencies be 0
-        # adapted from Barak Zakay's code.
+        # Arrival time at highest freq is zero.
         H = np.exp(2*np.pi*1j*DM*(1/f - 1/(self.fMax)))
         
         self.timeSeries = np.fft.ifft(np.fft.fft(self.timeSeries,axis=0) * H,axis=0)
@@ -142,13 +142,14 @@ class AmplitudeTimeSeries:
             if VERBOSE:
                 print "Cannot cleanly divide the TimeSeries. Did nothing."
         else:
-            newArray = np.empty((int(self.shape[0]/factor),self.shape[1]),dtype=self.timeSeries.dtype)
-            for i in range(newArray.shape[0]):
-                newArray[i,:] = np.mean(self.timeSeries[i*factor:(i+1)*factor,:],axis=0)
-            self.timeSeries = newArray
+
+            shape = (self.shape[0]/factor,self.shape[1])
+            sh = shape[0],self.shape[0]//shape[0],shape[1],self.shape[1]//shape[1]
+            self.timeSeries = self.timeSeries.reshape(sh).mean(-1).mean(1)
+            
             self.sampTime = self.sampTime*factor
             self.shape = self.timeSeries.shape
-    
+ 
     def PlotTimeSeries(self,offSet=0):
         """
         Plots the absolute values of the time series
