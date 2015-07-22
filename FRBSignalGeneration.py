@@ -129,7 +129,17 @@ class AmplitudeTimeSeries:
         Channel 0 is the lowest frequency, Channel numChan - 1 is the highest.
         TBD!
         """
-        return 0
+        
+        nTotal = self.shape[0]*self.shape[1]
+        assert nTotal % newNumChannels == 0, "Cannot cleanly divide the timeseries into %d channels! Doing nothing"%newNumChannels 
+
+        newShape = (nTotal/newNumChannels,newNumChannels)
+
+        self.timeSeries = np.fft.ifft(np.fft.fft(self.timeSeries,axis=0).reshape(newShape,order='F'),axis=0)
+
+        self.sampTime = self.sampTime*newNumChannels/self.shape[1]
+        self.shape = self.timeSeries.shape
+ 
 
     def TimeBin(self,factor):
         """
@@ -150,6 +160,26 @@ class AmplitudeTimeSeries:
             self.sampTime = self.sampTime*factor
             self.shape = self.timeSeries.shape
  
+    def ConvertToIntensity(self,binFactor=1):
+        """
+        Does autocorrelate and resampling of the timeSeries 
+        """
+
+        outputArray = np.float16(np.abs(self.timeSeries))
+
+        if self.shape[0] % binFactor > 0:
+            if VERBOSE:
+                print "Cannot cleanly divide the TimeSeries. Did nothing."
+                return None
+        else:
+
+            shape = (self.shape[0]/binFactor,self.shape[1])
+            sh = shape[0],self.shape[0]//shape[0],shape[1],self.shape[1]//shape[1]
+
+            return IntensityTimeSeries(timeSeries=outputArray.reshape(sh).mean(-1).mean(1),sampTime=self.sampTime*binFactor,fMin = self.fMin, fMax = self.fMax)
+
+
+
     def PlotTimeSeries(self,offSet=0):
         """
         Plots the absolute values of the time series
@@ -208,4 +238,58 @@ class IntensityTimeSeries:
                  sampTime=None,
                  noiseRMS=0.1):
 
-        return None
+        self.shape = (np.uint(lenSeries),np.uint(numChannels))
+        self.fMax = fMax
+        self.fMin = fMin        
+        
+        if sampTime is None:
+            self.sampTime = np.uint(numChannels)*1E-6/(fMax-fMin)
+        else:
+            self.sampTime = sampTime
+
+        if timeSeries is None:
+            # then use the rest of the data to generate a random timeseries
+            if VERBOSE:
+                print "IntensityTimeSeries __init__ did not get new data, generating white noise data"
+
+            self.timeSeries = noiseRMS*np.float16(random.standard_normal(self.shape))
+                                                     
+        else:
+            if VERBOSE:
+                print "IntensityTimeSeries __init__ got new data, making sure it is reasonable."
+
+            if len(timeSeries.shape) == 1:
+                self.shape = (timeSeries.shape[0],1)
+                
+            else:
+                self.shape = timeSeries.shape
+
+            self.timeSeries = np.reshape(np.float16(timeSeries),self.shape)
+            
+            self.fMin = fMin
+            self.fMax = fMax
+
+            if sampTime is None:
+                self.sampTime = numChannels*1E-6/(fMax-fMin)
+            else:
+                self.sampTime = sampTime
+
+    def PlotTimeSeries(self,offSet=0):
+        """
+        Plots the values of the time series
+        offSet is a scalar offSet of each channel plot. 
+        Increasing channels get shifted higher and higher 
+        """
+        plt.figure()
+        timePoints = np.arange(0,self.timeSeries.shape[0])*self.sampTime
+        #timePoints = (np.meshgrid(np.arange(0,self.shape[1]),
+        #                          np.arange(0,self.shape[0]))[0])*self.sampTime
+
+        offSets = np.outer(offSet*np.ones((self.shape[0],1)),np.arange(self.shape[1]))
+
+        plt.plot(timePoints,self.timeSeries+offSets)
+        plt.xlabel('Time (sec)')
+        plt.ylabel('Power')
+        plt.show()
+
+
