@@ -40,7 +40,7 @@ class AmplitudeTimeSeries:
         noiseAlpha -- spectral slope (default is white noise) (TBD)
         ONLY GENERATES WHITE NOISE RIGHT NOW!
         """
-        self.shape = (np.uint(lenSeries),np.uint(numChannels))
+        self.shape = (np.uint(numChannels),np.uint(lenSeries))
         self.fMax = fMax
         self.fMin = fMin        
         
@@ -62,7 +62,7 @@ class AmplitudeTimeSeries:
                 print "AmplitudeTimeSeries __init__ got new data, making sure it is reasonable."
 
             if len(timeSeries.shape) == 1:
-                self.shape = (timeSeries.shape[0],1)
+                self.shape = (1,timeSeries.shape[0])
                 
             else:
                 self.shape = timeSeries.shape
